@@ -15,6 +15,7 @@
             --accent-primary: #4f46e5;
             --accent-primary-hover: #4338ca;
             --accent-ai: #eab308;
+            --danger-color: #ef4444;
             --sidebar-width: 260px;
         }
 
@@ -113,6 +114,7 @@
             cursor: pointer;
             transition: all 0.2s ease;
             border: 1px solid transparent;
+            position: relative;
         }
 
         .question-tab:hover {
@@ -124,11 +126,17 @@
             border-color: #c7d2fe;
         }
 
+        .tab-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2px;
+        }
+
         .tab-title {
             font-size: 14px;
             font-weight: 600;
             color: var(--text-primary);
-            margin-bottom: 2px;
         }
 
         .question-tab.active .tab-title {
@@ -141,6 +149,25 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding-right: 20px;
+        }
+
+        /* Sleek Delete Button Inside Sidebar Row */
+        .delete-tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0 4px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .delete-tab-btn:hover {
+            color: var(--danger-color);
+            background-color: #fee2e2;
         }
 
         .workspace {
@@ -287,11 +314,9 @@
     </div>
 
     <script>
-        // Connects to your custom Supabase Project
         const SUPABASE_URL = "https://fzlbmrylnfeaswgeheic.supabase.co";
         
-        // 🚨 ACTION REQUIRED: Replace the string below with your actual "anon public" API key.
-        // Go to Supabase Dashboard -> Project Settings -> API to find it.
+        // 🚨 REMINDER: Replace with your actual public API key before uploading to GitHub!
         const SUPABASE_KEY = "sb_publishable_JVwk5bJExnYt0Y9Ey0hlkQ_erC535r3";
         
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -335,27 +360,57 @@
                 const cleanPreview = q.text.replace(/\s+/g, ' ');
 
                 tab.innerHTML = `
-                    <div class="tab-title">Problem #${q.id}</div>
+                    <div class="tab-header-row">
+                        <div class="tab-title">Problem #${q.id}</div>
+                        <button class="delete-tab-btn" title="Delete Problem">&times;</button>
+                    </div>
                     <div class="tab-preview">${cleanPreview || "Empty description"}</div>
                 `;
 
-                tab.addEventListener('click', () => {
+                // Main tab click event to view problem text
+                tab.addEventListener('click', (e) => {
+                    // Prevent loading the tab if the user clicked specifically on the delete cross button
+                    if (e.target.classList.contains('delete-tab-btn')) return;
+
                     document.querySelectorAll('.question-tab').forEach(t => t.classList.remove('active'));
                     tab.classList.add('active');
                     questionInput.value = q.text;
                     aiOutput.value = ""; 
                 });
 
+                // Delete button targeting inside the tab
+                const deleteBtn = tab.querySelector('.delete-tab-btn');
+                deleteBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation(); // Stops tab click from loading deleted text
+                    
+                    if (confirm(`Are you sure you want to delete Problem #${q.id}?`)) {
+                        const { error } = await supabaseClient
+                            .from('problems')
+                            .delete()
+                            .eq('id', q.id);
+
+                        if (error) {
+                            alert("Delete Failed: " + error.message);
+                            console.error(error);
+                        } else {
+                            // If the deleted question is currently showing in the textarea, clear it
+                            if (questionInput.value === q.text) {
+                                questionInput.value = "";
+                            }
+                            fetchQuestions(); // Refresh sidebar layout automatically
+                        }
+                    }
+                });
+
                 questionList.appendChild(tab);
             });
         }
 
-        // Write data to cloud (FIXED: Handles auto-increment IDs natively)
+        // Write data to cloud
         submitBtn.addEventListener('click', async () => {
             const text = questionInput.value.trim();
             if (!text) return;
 
-            // Only pass 'text'. Supabase handles assigning 'id' automatically
             const { error } = await supabaseClient
                 .from('problems')
                 .insert([{ text: text }]);
@@ -364,8 +419,8 @@
                 alert("Database Error: " + error.message);
                 console.error(error);
             } else {
-                questionInput.value = ""; // Clear input box on success
-                fetchQuestions();        // Instantly refresh the professional sidebar
+                questionInput.value = "";
+                fetchQuestions();
             }
         });
 
@@ -374,7 +429,6 @@
             fetchQuestions();
         });
 
-        // Initialize view
         fetchQuestions();
     </script>
 </body>
