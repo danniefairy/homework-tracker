@@ -287,12 +287,12 @@
     </div>
 
     <script>
-        // 1. Connects to your custom Supabase Project
+        // Connects to your custom Supabase Project
         const SUPABASE_URL = "https://fzlbmrylnfeaswgeheic.supabase.co";
         
         // 🚨 ACTION REQUIRED: Replace the string below with your actual "anon public" API key.
         // Go to Supabase Dashboard -> Project Settings -> API to find it.
-        const SUPABASE_KEY = "fzlbmrylnfeaswgeheic";
+        const SUPABASE_KEY = "sb_publishable_JVwk5bJExnYt0Y9Ey0hlkQ_erC535r3";
         
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -350,18 +350,22 @@
             });
         }
 
-        // Write data to cloud
+        // Write data to cloud (FIXED: Handles auto-increment IDs natively)
         submitBtn.addEventListener('click', async () => {
             const text = questionInput.value.trim();
             if (!text) return;
 
-            const { error } = await supabaseClient.from('problems').insert([{ text: text }]);
+            // Only pass 'text'. Supabase handles assigning 'id' automatically
+            const { error } = await supabaseClient
+                .from('problems')
+                .insert([{ text: text }]);
+
             if (error) {
-                alert("Error saving: Ensure you have created a table named 'problems' with a 'text' column.");
+                alert("Database Error: " + error.message);
                 console.error(error);
             } else {
-                questionInput.value = "";
-                fetchQuestions();
+                questionInput.value = ""; // Clear input box on success
+                fetchQuestions();        // Instantly refresh the professional sidebar
             }
         });
 
@@ -370,6 +374,7 @@
             fetchQuestions();
         });
 
+        // Initialize view
         fetchQuestions();
     </script>
 </body>
