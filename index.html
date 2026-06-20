@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -150,6 +151,24 @@
             overflow: hidden;
             text-overflow: ellipsis;
             padding-right: 20px;
+            margin-bottom: 6px;
+        }
+
+        .tag-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tag-badge {
+            display: inline-block;
+            font-size: 11px;
+            line-height: 1;
+            padding: 5px 8px;
+            border-radius: 999px;
+            background-color: #e0e7ff;
+            color: #4338ca;
+            border: 1px solid #c7d2fe;
         }
 
         /* Sleek Delete Button Inside Sidebar Row */
@@ -205,23 +224,33 @@
         }
         .bg-indigo { background-color: var(--accent-primary); }
         .bg-amber { background-color: var(--accent-ai); }
+        .bg-green { background-color: #22c55e; }
 
-        .textarea-input {
+        .textarea-input,
+        .tag-input {
             width: 100%;
-            flex-grow: 1;
             padding: 16px;
             font-size: 15px;
             line-height: 1.5;
             border-radius: 10px;
             border: 1px solid var(--border-color);
             background-color: #fafafa;
-            resize: none;
             outline: none;
             color: var(--text-primary);
             transition: all 0.2s ease;
         }
 
-        .textarea-input:focus {
+        .textarea-input {
+            flex-grow: 1;
+            resize: none;
+        }
+
+        .tag-input {
+            padding: 12px 16px;
+        }
+
+        .textarea-input:focus,
+        .tag-input:focus {
             background-color: var(--bg-card);
             border-color: var(--accent-primary);
             box-shadow: 0 4px 12px rgba(79, 70, 229, 0.03);
@@ -279,6 +308,12 @@
             margin-top: 30px;
             padding: 0 10px;
         }
+
+        .helper-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 6px;
+        }
     </style>
 </head>
 <body>
@@ -287,7 +322,7 @@
         <div class="sidebar">
             <div class="sidebar-header">History Vault</div>
             <div class="search-container">
-                <input type="text" id="searchBar" class="search-bar" placeholder="Filter questions...">
+                <input type="text" id="searchBar" class="search-bar" placeholder="Filter questions or tags...">
             </div>
             <div id="questionList" class="question-list"></div>
         </div>
@@ -298,6 +333,19 @@
                     <span class="badge bg-indigo"></span> Target Homework Problem
                 </label>
                 <textarea id="questionInput" class="textarea-input" placeholder="Paste or type your problem scenario or formula here..."></textarea>
+            </div>
+
+            <div class="card-pane" style="flex: 0.45;">
+                <label class="pane-label">
+                    <span class="badge bg-green"></span> Tags
+                </label>
+                <input
+                    type="text"
+                    id="tagInput"
+                    class="tag-input"
+                    placeholder="Add tags separated by commas, like algebra, chapter 3, hard"
+                >
+                <div class="helper-text">Tags will be saved with the question and shown in the sidebar.</div>
             </div>
 
             <div class="card-pane">
@@ -315,13 +363,12 @@
 
     <script>
         const SUPABASE_URL = "https://fzlbmrylnfeaswgeheic.supabase.co";
-        
-        // 🚨 REMINDER: Replace with your actual public API key before uploading to GitHub!
         const SUPABASE_KEY = "sb_publishable_JVwk5bJExnYt0Y9Ey0hlkQ_erC535r3";
         
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const questionInput = document.getElementById('questionInput');
+        const tagInput = document.getElementById('tagInput');
         const aiOutput = document.getElementById('aiOutput');
         const submitBtn = document.getElementById('submitBtn');
         const questionList = document.getElementById('questionList');
@@ -329,12 +376,25 @@
 
         let currentSearchQuery = "";
 
+        function normalizeTags(tagString) {
+            if (!tagString) return [];
+            return tagString
+                .split(',')
+                .map(tag => tag.trim())
+                .filter(tag => tag.length > 0);
+        }
+
+        function formatTagsForDisplay(tagString) {
+            const tags = normalizeTags(tagString);
+            return tags;
+        }
+
         // Read data from cloud
         async function fetchQuestions() {
             let query = supabaseClient.from('problems').select('*').order('id', { ascending: false });
 
             if (currentSearchQuery) {
-                query = query.ilike('text', `%${currentSearchQuery}%`);
+                query = query.or(`text.ilike.%${currentSearchQuery}%,tags.ilike.%${currentSearchQuery}%`);
             }
 
             const { data, error } = await query;
@@ -357,7 +417,8 @@
             questions.forEach((q) => {
                 const tab = document.createElement('div');
                 tab.className = 'question-tab';
-                const cleanPreview = q.text.replace(/\s+/g, ' ');
+                const cleanPreview = (q.text || "").replace(/\s+/g, ' ');
+                const tags = formatTagsForDisplay(q.tags);
 
                 tab.innerHTML = `
                     <div class="tab-header-row">
@@ -365,23 +426,26 @@
                         <button class="delete-tab-btn" title="Delete Problem">&times;</button>
                     </div>
                     <div class="tab-preview">${cleanPreview || "Empty description"}</div>
+                    <div class="tag-row">
+                        ${tags.length ? tags.map(tag => `<span class="tag-badge">${tag}</span>`).join('') : `<span class="tag-badge" style="background:#f1f5f9;color:#64748b;border-color:#e2e8f0;">No tags</span>`}
+                    </div>
                 `;
 
                 // Main tab click event to view problem text
                 tab.addEventListener('click', (e) => {
-                    // Prevent loading the tab if the user clicked specifically on the delete cross button
                     if (e.target.classList.contains('delete-tab-btn')) return;
 
                     document.querySelectorAll('.question-tab').forEach(t => t.classList.remove('active'));
                     tab.classList.add('active');
-                    questionInput.value = q.text;
+                    questionInput.value = q.text || "";
+                    tagInput.value = q.tags || "";
                     aiOutput.value = ""; 
                 });
 
                 // Delete button targeting inside the tab
                 const deleteBtn = tab.querySelector('.delete-tab-btn');
                 deleteBtn.addEventListener('click', async (e) => {
-                    e.stopPropagation(); // Stops tab click from loading deleted text
+                    e.stopPropagation();
                     
                     if (confirm(`Are you sure you want to delete Problem #${q.id}?`)) {
                         const { error } = await supabaseClient
@@ -393,11 +457,11 @@
                             alert("Delete Failed: " + error.message);
                             console.error(error);
                         } else {
-                            // If the deleted question is currently showing in the textarea, clear it
-                            if (questionInput.value === q.text) {
+                            if (questionInput.value === (q.text || "")) {
                                 questionInput.value = "";
+                                tagInput.value = "";
                             }
-                            fetchQuestions(); // Refresh sidebar layout automatically
+                            fetchQuestions();
                         }
                     }
                 });
@@ -409,23 +473,26 @@
         // Write data to cloud
         submitBtn.addEventListener('click', async () => {
             const text = questionInput.value.trim();
+            const tags = normalizeTags(tagInput.value).join(', ');
+
             if (!text) return;
 
             const { error } = await supabaseClient
                 .from('problems')
-                .insert([{ text: text }]);
+                .insert([{ text: text, tags: tags }]);
 
             if (error) {
                 alert("Database Error: " + error.message);
                 console.error(error);
             } else {
                 questionInput.value = "";
+                tagInput.value = "";
                 fetchQuestions();
             }
         });
 
         searchBar.addEventListener('input', (e) => {
-            currentSearchQuery = e.target.value;
+            currentSearchQuery = e.target.value.trim();
             fetchQuestions();
         });
 
