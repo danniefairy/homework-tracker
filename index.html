@@ -314,6 +314,53 @@
             color: var(--text-secondary);
             margin-top: 6px;
         }
+    
+        /* ===========================
+           Mobile Responsive Layout
+        =========================== */
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+                align-items: flex-start;
+                min-height: auto;
+            }
+            .dashboard {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+                border-radius: 0;
+                max-width: 100%;
+            }
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 16px;
+                max-height: 260px;
+            }
+            .question-list { max-height: 180px; }
+            .workspace { padding: 16px; gap: 16px; }
+            .card-pane { flex: none; }
+            .textarea-input, .textarea-ai { min-height: 180px; }
+            .action-bar { justify-content: stretch; }
+            .submit-btn { width: 100%; }
+            .tab-title { font-size: 13px; }
+            .tab-preview { font-size: 12px; }
+            .tag-badge { font-size: 10px; }
+        }
+        @media (max-width: 480px) {
+            .workspace { padding: 12px; }
+            .textarea-input, .textarea-ai {
+                min-height: 150px;
+                font-size: 14px;
+            }
+            .tag-input, .search-bar { font-size: 14px; }
+            .submit-btn {
+                padding: 14px;
+                font-size: 15px;
+            }
+        }
+
     </style>
 </head>
 <body>
