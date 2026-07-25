@@ -414,6 +414,25 @@
 
         let currentSearchQuery = "";
 
+        function makeReadable(text) {
+            return text
+                .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "$1/$2")
+                .replace(/\\times/g, "×")
+                .replace(/\\cdot/g, "·")
+                .replace(/\\div/g, "÷")
+                .replace(/\\sqrt\{([^}]*)\}/g, "√($1)")
+                .replace(/\\leq/g, "≤")
+                .replace(/\\geq/g, "≥")
+                .replace(/\\neq/g, "≠")
+                .replace(/\\pm/g, "±")
+                .replace(/\\approx/g, "≈")
+                .replace(/\\left/g, "")
+                .replace(/\\right/g, "")
+                .replace(/\\\(|\\\)|\\\[|\\\]|\$/g, "")
+                .trim();
+        }
+
+
         function normalizeTags(tagString) {
             if (!tagString) return [];
             return tagString
@@ -530,7 +549,14 @@
                     body: JSON.stringify({
                         model: "gpt-4o-mini", // Corrected model string
                         messages: [
-                            { role: "system", content: "You are a helpful tutor. Give a detailed step-by-step answer." },
+                            { role: "system", content: "You are a homework tutor.
+
+Rules:
+- Give the shortest correct answer possible.
+- Use simple English.
+- Only include the necessary steps.
+- Never use Markdown or LaTeX.
+- Output plain readable text only." },
                             { role: "user", content: q }
                         ],
                         temperature: 0.3
@@ -545,7 +571,7 @@
                 }
 
                 aiOutput.value = "[3/3] Done!";
-                aiOutput.value = data.choices[0].message.content;
+                aiOutput.value = makeReadable(data.choices[0].message.content);
 
             } catch (e) {
                 aiOutput.value = "Execution Failed!\n\nDetails:\n" + e.message + "\n\nPlease double check if your API key is correct, active, or if your network limits outbound requests to api.openai.com.";
