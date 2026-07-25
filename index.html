@@ -415,6 +415,7 @@
         let currentSearchQuery = "";
 
         function makeReadable(text) {
+            if (!text) return "";
             return text
                 .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "$1/$2")
                 .replace(/\\times/g, "×")
@@ -432,7 +433,6 @@
                 .trim();
         }
 
-
         function normalizeTags(tagString) {
             if (!tagString) return [];
             return tagString
@@ -441,24 +441,28 @@
                 .filter(tag => tag.length > 0);
         }
 
-        function formatTagsForDisplay(tagString) {
-            return normalizeTags(tagString);
-        }
-
         async function fetchQuestions() {
             let query = supabaseClient.from('problems').select('*').order('id', { ascending: false });
-
-            if (currentSearchQuery) {
-                query = query.or(`text.ilike.%${currentSearchQuery}%,tags.ilike.%${currentSearchQuery}%`);
-            }
 
             const { data, error } = await query;
             if (error) {
                 console.error("Error reading database:", error);
                 return;
             }
-            
-            renderSidebar(data || []);
+
+            let filteredData = data || [];
+
+            // Perform client-side filter so structure variations (text vs question) don't break search
+            if (currentSearchQuery) {
+                const qLower = currentSearchQuery.toLowerCase();
+                filteredData = filteredData.filter(q => {
+                    const content = (q.text || q.question || "").toLowerCase();
+                    const tags = (q.tags || "").toLowerCase();
+                    return content.includes(qLower) || tags.includes(qLower);
+                });
+            }
+
+            renderSidebar(filteredData);
         }
 
         function renderSidebar(questions) {
@@ -472,8 +476,11 @@
             questions.forEach((q) => {
                 const tab = document.createElement('div');
                 tab.className = 'question-tab';
-                const cleanPreview = (q.text || "").replace(/\s+/g, ' ');
-                const tags = formatTagsForDisplay(q.tags);
+
+                // Robust fallback check for column names (text vs question)
+                const problemText = q.text || q.question || "";
+                const cleanPreview = problemText.replace(/\s+/g, ' ');
+                const tags = normalizeTags(q.tags);
 
                 tab.innerHTML = `
                     <div class="tab-header-row">
@@ -491,7 +498,7 @@
 
                     document.querySelectorAll('.question-tab').forEach(t => t.classList.remove('active'));
                     tab.classList.add('active');
-                    questionInput.value = q.text || "";
+                    questionInput.value = problemText;
                     tagInput.value = q.tags || "";
                     aiOutput.value = ""; 
                 });
@@ -510,7 +517,7 @@
                             alert("Delete Failed: " + error.message);
                             console.error(error);
                         } else {
-                            if (questionInput.value === (q.text || "")) {
+                            if (questionInput.value === problemText) {
                                 questionInput.value = "";
                                 tagInput.value = "";
                             }
@@ -523,7 +530,6 @@
             });
         }
 
-        // --- FIXED GLOBAL AI GENERATION HANDLER ---
         generateBtn.addEventListener("click", async () => {
             const key = apiKeyInput.value.trim();
             const q = questionInput.value.trim();
@@ -547,16 +553,9 @@
                         "Authorization": "Bearer " + key
                     },
                     body: JSON.stringify({
-                        model: "gpt-4o-mini", // Corrected model string
+                        model: "gpt-4o-mini",
                         messages: [
-                            { role: "system", content: "You are a homework tutor.
-
-Rules:
-- Give the shortest correct answer possible.
-- Use simple English.
-- Only include the necessary steps.
-- Never use Markdown or LaTeX.
-- Output plain readable text only." },
+                            { role: "system", content: "You are a homework tutor.\n\nRules:\n- Give the shortest correct answer possible.\n- Use simple English.\n- Only include the necessary steps.\n- Never use Markdown or LaTeX.\n- Output plain readable text only." },
                             { role: "user", content: q }
                         ],
                         temperature: 0.3
@@ -570,7 +569,6 @@ Rules:
                     throw new Error(data.error?.message || `HTTP error! Status: ${r.status}`);
                 }
 
-                aiOutput.value = "[3/3] Done!";
                 aiOutput.value = makeReadable(data.choices[0].message.content);
 
             } catch (e) {
@@ -579,16 +577,27 @@ Rules:
             }
         });
 
-        // Save data to cloud
+        // Save data to cloud with fallback column checks
         submitBtn.addEventListener('click', async () => {
             const text = questionInput.value.trim();
             const tags = normalizeTags(tagInput.value).join(', ');
 
             if (!text) return;
 
-            const { error } = await supabaseClient
+            // Attempting insertion with 'text' column, falling back if schema uses 'question'
+            let insertPayload = { text: text, tags: tags };
+            let { error } = await supabaseClient
                 .from('problems')
-                .insert([{ text: text, tags: tags }]);
+                .insert([insertPayload]);
+
+            if (error && error.message.includes("column")) {
+                // Retry insertion using 'question' column if 'text' column doesn't exist
+                insertPayload = { question: text, tags: tags };
+                const retry = await supabaseClient
+                    .from('problems')
+                    .insert([insertPayload]);
+                error = retry.error;
+            }
 
             if (error) {
                 alert("Database Error: " + error.message);
@@ -605,7 +614,6 @@ Rules:
             fetchQuestions();
         });
 
-        // Initialize app on mount
         fetchQuestions();
     </script>
 </body>
