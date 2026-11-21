@@ -72,6 +72,10 @@
             margin-bottom: 16px;
         }
 
+        .subject-filter {
+            margin-bottom: 12px;
+        }
+
         .search-bar {
             width: 100%;
             padding: 10px 12px;
@@ -194,6 +198,7 @@
             padding: 24px;
             gap: 20px;
             background-color: var(--bg-card);
+            overflow-y: auto;
         }
 
         .card-pane {
@@ -355,38 +360,52 @@
 
     <div class="dashboard">
         <div class="sidebar">
-            <div class="sidebar-header">History Vault</div>
+            <div class="sidebar-header">Homework Vault</div>
+            <label class="pane-label" for="subjectFilter">Filter by subject</label>
+            <select id="subjectFilter" class="search-bar subject-filter">
+                <option value="">All subjects</option>
+            </select>
             <div class="search-container">
-                <input type="text" id="searchBar" class="search-bar" placeholder="Filter questions or tags...">
+                <input type="text" id="searchBar" class="search-bar" aria-label="Search questions, subjects or tags" placeholder="Search questions, subjects or tags...">
             </div>
             <div id="questionList" class="question-list"></div>
         </div>
 
         <div class="workspace">
             <div class="card-pane">
-                <label class="pane-label">
+                <label class="pane-label" for="questionInput">
                     <span class="badge bg-indigo"></span> Target Homework Problem
                 </label>
-                <textarea id="questionInput" class="textarea-input" placeholder="Paste or type your problem scenario or formula here..."></textarea>
+                <textarea id="questionInput" class="textarea-input" placeholder="Paste or type a question or assignment from any subject..."></textarea>
+            </div>
+
+            <div class="card-pane" style="flex: 0;">
+                <label class="pane-label" for="subjectInput"><span class="badge bg-indigo"></span> Subject</label>
+                <input type="text" id="subjectInput" class="tag-input" list="subjectSuggestions" placeholder="e.g. Math, History, Biology, or any subject">
+                <datalist id="subjectSuggestions">
+                    <option value="Math"></option><option value="Science"></option><option value="History"></option>
+                    <option value="English"></option><option value="Languages"></option><option value="Art"></option>
+                </datalist>
+                <div class="helper-text">Enter any subject, or leave blank for Uncategorized.</div>
             </div>
 
             <div class="card-pane" style="flex: 0.45;">
-                <label class="pane-label">
+                <label class="pane-label" for="tagInput">
                     <span class="badge bg-green"></span> Tags
                 </label>
-                <input type="text" id="tagInput" class="tag-input" placeholder="Add tags separated by commas, like algebra, chapter 3, hard">
+                <input type="text" id="tagInput" class="tag-input" placeholder="Add tags separated by commas, like chapter 3, essay, review">
                 <div class="helper-text">Tags will be saved with the question and shown in the sidebar.</div>
             </div>
 
             <div class="card-pane">
-                <label class="pane-label">
+                <label class="pane-label" for="aiOutput">
                     <span class="badge bg-amber"></span> Answer
                 </label>
                 <textarea id="aiOutput" class="textarea-ai" placeholder="Click Generate Answer to produce a detailed solution..." readonly></textarea>
             </div>
 
             <div class="card-pane" style="flex:0.35;">
-                <label class="pane-label"><span class="badge bg-indigo"></span> OpenAI API Key</label>
+                <label class="pane-label" for="apiKeyInput"><span class="badge bg-indigo"></span> OpenAI API Key</label>
                 <input id="apiKeyInput" class="tag-input" type="password" placeholder="sk-...">
                 <div class="helper-text">Stored only in this browser session.</div>
             </div>
@@ -405,6 +424,8 @@
 
         const questionInput = document.getElementById('questionInput');
         const tagInput = document.getElementById('tagInput');
+        const subjectInput = document.getElementById('subjectInput');
+        const subjectFilter = document.getElementById('subjectFilter');
         const aiOutput = document.getElementById('aiOutput');
         const submitBtn = document.getElementById('submitBtn');
         const generateBtn = document.getElementById('generateBtn');
@@ -413,25 +434,8 @@
         const searchBar = document.getElementById('searchBar');
 
         let currentSearchQuery = "";
-
-        function makeReadable(text) {
-            if (!text) return "";
-            return text
-                .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "$1/$2")
-                .replace(/\\times/g, "×")
-                .replace(/\\cdot/g, "·")
-                .replace(/\\div/g, "÷")
-                .replace(/\\sqrt\{([^}]*)\}/g, "√($1)")
-                .replace(/\\leq/g, "≤")
-                .replace(/\\geq/g, "≥")
-                .replace(/\\neq/g, "≠")
-                .replace(/\\pm/g, "±")
-                .replace(/\\approx/g, "≈")
-                .replace(/\\left/g, "")
-                .replace(/\\right/g, "")
-                .replace(/\\\(|\\\)|\\\[|\\\]|\$/g, "")
-                .trim();
-        }
+        let questions = [];
+        const subjectTagPrefix = '__studyvault_subject__:';
 
         function normalizeTags(tagString) {
             if (!tagString) return [];
@@ -439,6 +443,56 @@
                 .split(',')
                 .map(tag => tag.trim())
                 .filter(tag => tag.length > 0);
+        }
+
+        // Store the subject in the existing tags column so older database schemas still work.
+        function readProblemTags(tagString) {
+            let subject = '';
+            const tags = [];
+            normalizeTags(tagString).forEach(tag => {
+                if (tag.startsWith(subjectTagPrefix) && !subject) {
+                    try {
+                        subject = decodeURIComponent(tag.slice(subjectTagPrefix.length));
+                    } catch (error) {
+                        tags.push(tag);
+                    }
+                } else {
+                    tags.push(tag);
+                }
+            });
+            return { subject, tags };
+        }
+
+        function updateSubjectFilter() {
+            const selected = subjectFilter.value;
+            const subjects = new Map();
+            questions.forEach(question => {
+                const subject = readProblemTags(question.tags).subject;
+                if (subject && !subjects.has(subject.toLowerCase())) subjects.set(subject.toLowerCase(), subject);
+            });
+            subjectFilter.replaceChildren();
+            const addOption = (value, label) => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = label;
+                subjectFilter.appendChild(option);
+            };
+            addOption('', 'All subjects');
+            addOption('__uncategorized__', 'Uncategorized');
+            [...subjects.entries()].sort((a, b) => a[1].localeCompare(b[1])).forEach(([value, label]) => addOption('subject:' + value, label));
+            subjectFilter.value = [...subjectFilter.options].some(option => option.value === selected) ? selected : '';
+        }
+
+        function filterQuestions() {
+            const query = currentSearchQuery.toLowerCase();
+            const selected = subjectFilter.value;
+            renderSidebar(questions.filter(question => {
+                const { subject, tags } = readProblemTags(question.tags);
+                const matchesSubject = !selected || (selected === '__uncategorized__'
+                    ? !subject : selected === 'subject:' + subject.toLowerCase());
+                const content = question.text || question.question || '';
+                return matchesSubject && [content, subject, ...tags].some(value => value.toLowerCase().includes(query));
+            }));
         }
 
         async function fetchQuestions() {
@@ -450,19 +504,9 @@
                 return;
             }
 
-            let filteredData = data || [];
-
-            // Perform client-side filter so structure variations (text vs question) don't break search
-            if (currentSearchQuery) {
-                const qLower = currentSearchQuery.toLowerCase();
-                filteredData = filteredData.filter(q => {
-                    const content = (q.text || q.question || "").toLowerCase();
-                    const tags = (q.tags || "").toLowerCase();
-                    return content.includes(qLower) || tags.includes(qLower);
-                });
-            }
-
-            renderSidebar(filteredData);
+            questions = data || [];
+            updateSubjectFilter();
+            filterQuestions();
         }
 
         function renderSidebar(questions) {
@@ -480,18 +524,25 @@
                 // Robust fallback check for column names (text vs question)
                 const problemText = q.text || q.question || "";
                 const cleanPreview = problemText.replace(/\s+/g, ' ');
-                const tags = normalizeTags(q.tags);
+                const { subject, tags } = readProblemTags(q.tags);
 
                 tab.innerHTML = `
                     <div class="tab-header-row">
-                        <div class="tab-title">Problem #${q.id}</div>
+                        <div class="tab-title"></div>
                         <button class="delete-tab-btn" title="Delete Problem">&times;</button>
                     </div>
-                    <div class="tab-preview">${cleanPreview || "Empty description"}</div>
-                    <div class="tag-row">
-                        ${tags.length ? tags.map(tag => `<span class="tag-badge">${tag}</span>`).join('') : `<span class="tag-badge" style="background:#f1f5f9;color:#64748b;border-color:#e2e8f0;">No tags</span>`}
-                    </div>
+                    <div class="tab-preview"></div>
+                    <div class="tag-row"></div>
                 `;
+                tab.querySelector('.tab-title').textContent = `Problem #${q.id}`;
+                tab.querySelector('.tab-preview').textContent = cleanPreview || 'Empty description';
+                const tagRow = tab.querySelector('.tag-row');
+                [subject || 'Uncategorized', ...tags].forEach(value => {
+                    const badge = document.createElement('span');
+                    badge.className = 'tag-badge';
+                    badge.textContent = value;
+                    tagRow.appendChild(badge);
+                });
 
                 tab.addEventListener('click', (e) => {
                     if (e.target.classList.contains('delete-tab-btn')) return;
@@ -499,7 +550,8 @@
                     document.querySelectorAll('.question-tab').forEach(t => t.classList.remove('active'));
                     tab.classList.add('active');
                     questionInput.value = problemText;
-                    tagInput.value = q.tags || "";
+                    subjectInput.value = subject;
+                    tagInput.value = tags.join(', ');
                     aiOutput.value = ""; 
                 });
 
@@ -520,6 +572,7 @@
                             if (questionInput.value === problemText) {
                                 questionInput.value = "";
                                 tagInput.value = "";
+                                subjectInput.value = "";
                             }
                             fetchQuestions();
                         }
@@ -533,6 +586,7 @@
         generateBtn.addEventListener("click", async () => {
             const key = apiKeyInput.value.trim();
             const q = questionInput.value.trim();
+            const subject = subjectInput.value.trim();
             
             if (!key) {
                 alert("Validation Error: Please enter your OpenAI API Key.");
@@ -555,8 +609,8 @@
                     body: JSON.stringify({
                         model: "gpt-4o-mini",
                         messages: [
-                            { role: "system", content: "You are a homework tutor.\n\nRules:\n- Give the shortest correct answer possible.\n- Use simple English.\n- Only include the necessary steps.\n- Never use Markdown or LaTeX.\n- Output plain readable text only." },
-                            { role: "user", content: q }
+                            { role: "system", content: "You are a tutor for all school subjects. Explain the answer clearly and accurately, with the reasoning or examples needed for the subject and assignment. Use plain readable text." },
+                            { role: "user", content: subject ? `Subject: ${subject}\n\nAssignment:\n${q}` : q }
                         ],
                         temperature: 0.3
                     })
@@ -569,7 +623,7 @@
                     throw new Error(data.error?.message || `HTTP error! Status: ${r.status}`);
                 }
 
-                aiOutput.value = makeReadable(data.choices[0].message.content);
+                aiOutput.value = data.choices[0].message.content.trim();
 
             } catch (e) {
                 aiOutput.value = "Execution Failed!\n\nDetails:\n" + e.message + "\n\nPlease double check if your API key is correct, active, or if your network limits outbound requests to api.openai.com.";
@@ -580,19 +634,22 @@
         // Save data to cloud with fallback column checks
         submitBtn.addEventListener('click', async () => {
             const text = questionInput.value.trim();
-            const tags = normalizeTags(tagInput.value).join(', ');
+            const tags = normalizeTags(tagInput.value);
+            const subject = subjectInput.value.trim();
+            if (subject) tags.unshift(subjectTagPrefix + encodeURIComponent(subject));
+            const storedTags = tags.join(', ');
 
             if (!text) return;
 
             // Attempting insertion with 'text' column, falling back if schema uses 'question'
-            let insertPayload = { text: text, tags: tags };
+            let insertPayload = { text: text, tags: storedTags };
             let { error } = await supabaseClient
                 .from('problems')
                 .insert([insertPayload]);
 
             if (error && error.message.includes("column")) {
                 // Retry insertion using 'question' column if 'text' column doesn't exist
-                insertPayload = { question: text, tags: tags };
+                insertPayload = { question: text, tags: storedTags };
                 const retry = await supabaseClient
                     .from('problems')
                     .insert([insertPayload]);
@@ -605,14 +662,17 @@
             } else {
                 questionInput.value = "";
                 tagInput.value = "";
+                subjectInput.value = "";
                 fetchQuestions();
             }
         });
 
         searchBar.addEventListener('input', (e) => {
             currentSearchQuery = e.target.value.trim();
-            fetchQuestions();
+            filterQuestions();
         });
+
+        subjectFilter.addEventListener('change', filterQuestions);
 
         fetchQuestions();
     </script>
