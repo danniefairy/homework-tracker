@@ -546,36 +546,150 @@
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { transition-duration: .01ms !important; }
         }
+
+        /* Refined application shell */
+        :root {
+            --border-color: #e2e7ef;
+            --text-primary: #17233b;
+            --text-secondary: #58677f;
+            --accent-primary: #3155c6;
+            --accent-primary-hover: #2545ac;
+            --sidebar-width: 310px;
+        }
+        body { padding: 24px; background: #edf1f7; }
+        .dashboard {
+            max-width: 1440px; height: calc(100vh - 48px); min-height: 0;
+            border-color: #dce3ee; border-radius: 16px;
+            box-shadow: 0 18px 50px rgba(29, 46, 77, .09);
+        }
+        .sidebar { padding: 26px 20px 18px; background: #f8fafc; overflow-y: auto; }
+        .brand { gap: 12px; margin: 0 2px 26px; }
+        .brand-mark, .hero-icon { background: #263e79; box-shadow: none; }
+        .brand-mark { width: 40px; height: 40px; border-radius: 10px; font-size: 18px; }
+        .brand-name { color: #182641; font-size: 17px; letter-spacing: -.03em; }
+        .brand-subtitle { color: #66758b; font-size: 12px; }
+        .account { margin: 0 0 27px; padding: 16px; background: #fff; border: 1px solid #e0e6ef; border-radius: 12px; box-shadow: 0 2px 5px rgba(32, 48, 76, .03); }
+        .account-heading { margin-bottom: 5px; color: #263650; font-size: 13px; font-weight: 700; }
+        .account-status { margin-bottom: 13px; color: #58677f; font-size: 12px; line-height: 1.5; }
+        .account-btn {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            min-height: 44px; padding: 9px 12px; border: 1px solid #cbd4e1;
+            border-radius: 8px; background: #fff; color: #263650;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+        }
+        .account-btn:hover:not(:disabled) { background: #f6f8fc; border-color: #aebbd0; box-shadow: 0 2px 5px rgba(29, 46, 77, .08); }
+        .account-btn:disabled { cursor: wait; opacity: .65; }
+        .google-icon { width: 18px; height: 18px; flex: none; }
+        .sidebar-heading { margin: 0 2px 12px; }
+        .sidebar-header { color: #33445e; font-size: 11px; letter-spacing: .07em; }
+        .question-count { padding: 4px 8px; background: #e9eef6; color: #52627a; }
+        .search-bar { min-height: 42px; border-color: #d6deea; border-radius: 8px; font-size: 13px; }
+        .search-container .search-bar { padding-left: 38px; }
+        .search-icon { top: 12px; left: 13px; width: 16px; height: 16px; color: #718096; }
+        .subject-filter { margin-bottom: 22px; }
+        .list-caption { color: #66758b; letter-spacing: .08em; }
+        .question-list { min-height: 120px; }
+        .question-tab { border-radius: 9px; }
+        .question-tab:hover { background: #edf2f9; }
+        .question-tab.active { background: #eaf0ff; border-color: #cbd9fc; }
+        .tag-badge { background: #e9eef7; color: #435b80; }
+        .sidebar-footer { color: #69788d; }
+        .workspace { background: #fff; padding: 34px clamp(28px, 5vw, 76px) 48px; }
+        .workspace-inner { max-width: 900px; }
+        .topbar { margin-bottom: 48px; padding-bottom: 20px; border-bottom: 1px solid #e8edf3; }
+        .breadcrumb { color: #75839a; font-size: 13px; }
+        .breadcrumb strong { color: #32425d; }
+        .new-btn { min-height: 40px; padding: 9px 14px; color: #304c9a; background: #edf2ff; border: 1px solid #dce6ff; border-radius: 8px; font-size: 13px; }
+        .new-btn:hover { background: #e3ebff; }
+        .hero { gap: 17px; margin-bottom: 30px; }
+        .hero-icon { width: 48px; height: 48px; border-radius: 12px; font-size: 21px; }
+        .eyebrow { margin-bottom: 7px; color: #4864a3; font-size: 10px; letter-spacing: .1em; }
+        .hero h1 { font-size: clamp(27px, 3vw, 36px); letter-spacing: -.04em; }
+        .hero p { max-width: 600px; margin-top: 9px; color: #58677f; font-size: 14px; }
+        .editor-card { padding: 28px; border-color: #dfe6ef; border-radius: 14px; box-shadow: 0 5px 20px rgba(29, 46, 77, .04); }
+        .section-heading { align-items: flex-start; margin-bottom: 24px; padding-bottom: 19px; border-bottom: 1px solid #edf0f5; }
+        .section-heading h2 { color: #1d2d47; font-size: 17px; }
+        .section-heading p { margin-top: 5px; color: #66758b; font-size: 12px; line-height: 1.5; }
+        .section-heading span { color: #64748b; font-size: 11px; white-space: nowrap; }
+        .pane-label { color: #31415b; font-size: 13px; }
+        .optional { color: #6e7c91; }
+        .textarea-input, .tag-input, .textarea-ai { border-color: #d6deea; border-radius: 8px; background: #fff; color: #17233b; }
+        .textarea-input { min-height: 170px; }
+        .textarea-input::placeholder, .tag-input::placeholder, .search-bar::placeholder { color: #7c899c; opacity: 1; }
+        .textarea-input:focus, .tag-input:focus, .search-bar:focus { border-color: #6482dc; box-shadow: 0 0 0 3px rgba(49, 85, 198, .12); }
+        :focus-visible { outline: 3px solid #83a1f2; outline-offset: 3px; }
+        .helper-text { color: #64748b; }
+        .key-settings { background: #f7f9fc; border-color: #e4eaf2; border-radius: 9px; }
+        .key-settings summary { color: #344761; font-size: 13px; }
+        .action-bar { gap: 10px; border-color: #e8edf3; }
+        .submit-btn { border-radius: 8px; box-shadow: none; }
+        .submit-btn:hover { box-shadow: 0 4px 10px rgba(49, 85, 198, .16); }
+        .submit-btn.ghost-btn { color: #40516b; border-color: #d6deea; }
+        .submit-btn.ghost-btn:hover { color: #2545ac; background: #f5f8ff; }
+        .submit-btn.secondary-btn { color: #fff; background: #263e79; }
+        .submit-btn.secondary-btn:hover { color: #fff; background: #1e3265; }
+        .status-message { color: #425977; }
+        .status-message:empty { min-height: 0; margin-top: 0; }
+        .workspace-note { color: #66758b; }
+        .empty-state { background: #f1f5fa; border-color: #d8e1ed; color: #58677f; }
+        .answer-dialog { border-radius: 14px; }
+        .textarea-ai { background: #f8fafc; }
+        @media (max-width: 768px) {
+            body { padding: 0; }
+            .dashboard { height: auto; min-height: 100vh; border-radius: 0; }
+            .sidebar { padding: 20px; }
+            .brand { margin-bottom: 20px; }
+            .account { margin-bottom: 22px; }
+            .workspace { padding: 28px 20px 40px; }
+            .topbar { margin-bottom: 30px; }
+        }
+        @media (max-width: 480px) {
+            .sidebar { padding: 18px 16px; }
+            .workspace { padding: 24px 16px 36px; }
+            .topbar { gap: 8px; }
+            .breadcrumb { font-size: 12px; }
+            .new-btn { font-size: 12px; }
+            .hero { gap: 12px; }
+            .hero-icon { width: 42px; height: 42px; }
+            .editor-card { padding: 19px; }
+            .section-heading { flex-direction: column; gap: 8px; }
+            .textarea-input, .tag-input, .search-bar { font-size: 16px; }
+        }
     </style>
 </head>
 <body>
 
     <div class="dashboard">
         <aside class="sidebar" aria-label="Homework library">
-            <div class="brand"><div class="brand-mark" aria-hidden="true">✦</div><div><div class="brand-name">StudyVault</div><div class="brand-subtitle">Your space to learn</div></div></div>
+            <div class="brand"><div class="brand-mark" aria-hidden="true">✦</div><div><div class="brand-name">StudyVault</div><div class="brand-subtitle">Your learning workspace</div></div></div>
             <div class="account">
-                <div id="accountStatus" class="account-status" role="status">Checking sign-in…</div>
-                <button id="signInBtn" class="new-btn" type="button" disabled>Sign in with Google</button>
-                <button id="signOutBtn" class="new-btn" type="button" hidden>Sign out</button>
+                <div class="account-heading">Your account</div>
+                <div id="accountStatus" class="account-status" role="status">Checking your account…</div>
+                <button id="signInBtn" class="account-btn" type="button" disabled>
+                    <svg class="google-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path fill="#4285F4" d="M43.61 24.46c0-1.36-.12-2.66-.35-3.91H24v7.39h11.01a9.42 9.42 0 0 1-4.09 6.18v5h6.61c3.87-3.56 6.08-8.81 6.08-14.66z"/><path fill="#34A853" d="M24 44c5.51 0 10.13-1.83 13.51-4.88l-6.61-5c-1.83 1.23-4.17 1.97-6.9 1.97-5.31 0-9.81-3.58-11.42-8.41H5.76v5.16A20.4 20.4 0 0 0 24 44z"/><path fill="#FBBC05" d="M12.58 27.68A12.3 12.3 0 0 1 11.94 24c0-1.28.22-2.52.64-3.68v-5.16H5.76A20 20 0 0 0 3.6 24c0 3.2.77 6.23 2.16 8.84l6.82-5.16z"/><path fill="#EA4335" d="M24 11.91c3 0 5.69 1.03 7.81 3.05l5.85-5.85C34.12 5.81 29.5 4 24 4A20.4 20.4 0 0 0 5.76 15.16l6.82 5.16c1.61-4.83 6.11-8.41 11.42-8.41z"/></svg>
+                    <span>Sign in with Google</span>
+                </button>
+                <button id="signOutBtn" class="account-btn" type="button" hidden>Sign out</button>
             </div>
             <div class="sidebar-heading"><h2 class="sidebar-header">Your library</h2><span id="questionCount" class="question-count">0 saved</span></div>
             <div class="search-container">
-                <span class="search-icon" aria-hidden="true">⌕</span>
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg>
                 <input type="search" id="searchBar" class="search-bar" aria-label="Search questions, subjects or tags" placeholder="Search your library...">
             </div>
             <label class="pane-label" for="subjectFilter">Subject</label>
             <select id="subjectFilter" class="search-bar subject-filter"><option value="">All subjects</option></select>
             <div class="list-caption">Saved questions</div>
             <div id="questionList" class="question-list" aria-label="Saved questions"><div class="empty-state">Loading your library…</div></div>
-            <div class="sidebar-footer">A little progress every day adds up. ✨</div>
+            <div class="sidebar-footer">Your questions, organized in one place.</div>
         </aside>
 
         <main class="workspace">
             <div class="workspace-inner">
                 <div class="topbar"><div class="breadcrumb">StudyVault &nbsp;/&nbsp; <strong>Workspace</strong></div><button id="newQuestionBtn" class="new-btn" type="button">＋ New question</button></div>
-                <div class="hero"><div class="hero-icon" aria-hidden="true">✧</div><div><div class="eyebrow">Your study space</div><h1>Let's figure it out.</h1><p>Keep your questions organized and get a little help when you need it.</p></div></div>
+                <div class="hero"><div class="hero-icon" aria-hidden="true">✧</div><div><div class="eyebrow">Your study workspace</div><h1>Make progress, one question at a time.</h1><p>Organize your assignments, explore answers, and keep your learning on track.</p></div></div>
                 <section class="editor-card" aria-labelledby="editorTitle">
-                    <div class="section-heading"><h2 id="editorTitle">Your question</h2><span>All subjects welcome</span></div>
+                    <div class="section-heading"><div><h2 id="editorTitle">Question details</h2><p>Add a question and organize it for later.</p></div><span>All subjects welcome</span></div>
                     <div class="card-pane">
                         <label class="pane-label" for="questionInput">What are you working on?</label>
                         <textarea id="questionInput" class="textarea-input" placeholder="Type or paste your question or assignment here..."></textarea>
@@ -608,7 +722,7 @@
                     </div>
                     <div id="statusMessage" class="status-message" role="status" aria-live="polite"></div>
                 </section>
-                <p class="workspace-note">Tip: Save a new question to keep its answer. Answers generated for saved questions are saved automatically.</p>
+                <p class="workspace-note">Save a new question to keep its answer. Answers generated for saved questions are saved automatically.</p>
             </div>
         </main>
     </div>
