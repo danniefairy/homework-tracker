@@ -599,7 +599,7 @@
                     </div>
                     <div id="statusMessage" class="status-message" role="status" aria-live="polite"></div>
                 </section>
-                <p class="workspace-note">Tip: Select a saved question from your library to revisit it. Answers are not saved with questions.</p>
+                <p class="workspace-note">Tip: Save a new question to keep its answer. Answers generated for saved questions are saved automatically.</p>
             </div>
         </main>
     </div>
@@ -639,6 +639,9 @@
 
         let currentSearchQuery = "";
         let questions = [];
+        let selectedProblem = null;
+        let generatedAnswer = null;
+        let editorVersion = 0;
         const subjectTagPrefix = '__studyvault_subject__:';
 
         function setStatus(message, kind = '') {
@@ -646,13 +649,23 @@
             statusMessage.dataset.kind = kind;
         }
 
+        function clearAnswer() {
+            editorVersion++;
+            generatedAnswer = null;
+            aiOutput.value = '';
+        }
+
+        questionInput.addEventListener('input', clearAnswer);
+        subjectInput.addEventListener('input', clearAnswer);
+
         newQuestionBtn.addEventListener('click', () => {
             if ((questionInput.value.trim() || subjectInput.value.trim() || tagInput.value.trim()) &&
                 !confirm('Start a new question? Any text currently in the editor will be cleared.')) return;
             questionInput.value = '';
             subjectInput.value = '';
             tagInput.value = '';
-            aiOutput.value = '';
+            selectedProblem = null;
+            clearAnswer();
             document.querySelectorAll('.question-tab').forEach(tab => tab.classList.remove('active'));
             setStatus('Ready for a new question.');
             questionInput.focus();
@@ -774,7 +787,10 @@
                     questionInput.value = problemText;
                     subjectInput.value = subject;
                     tagInput.value = tags.join(', ');
-                    aiOutput.value = ""; 
+                    selectedProblem = { id: q.id, text: problemText.trim(), subject };
+                    clearAnswer();
+                    generatedAnswer = q.answer || null;
+                    aiOutput.value = generatedAnswer || '';
                     setStatus('Question loaded. Saving will create a new copy.');
                 });
 
@@ -793,10 +809,12 @@
                             setStatus('Could not delete the question: ' + error.message, 'error');
                             console.error(error);
                         } else {
-                            if (questionInput.value === problemText) {
+                            if (selectedProblem && selectedProblem.id === q.id) {
                                 questionInput.value = "";
                                 tagInput.value = "";
                                 subjectInput.value = "";
+                                selectedProblem = null;
+                                clearAnswer();
                             }
                             setStatus('Question deleted.', 'success');
                             fetchQuestions();
@@ -819,6 +837,8 @@
             const key = apiKeyInput.value.trim();
             const q = questionInput.value.trim();
             const subject = subjectInput.value.trim();
+            const problem = selectedProblem && selectedProblem.text === q && selectedProblem.subject === subject
+                ? selectedProblem : null;
             
             if (!q) {
                 setStatus('Add a question before generating an answer.', 'error');
@@ -833,9 +853,12 @@
             }
             
             setStatus('');
+            clearAnswer();
+            const requestVersion = editorVersion;
             aiOutput.value = "Working on your answer…";
             showAnswer();
             generateBtn.disabled = true;
+            submitBtn.disabled = true;
             
             try {
                 const r = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -860,13 +883,38 @@
                     throw new Error(data.error?.message || `HTTP error! Status: ${r.status}`);
                 }
 
-                aiOutput.value = data.choices[0].message.content.trim();
+                const answer = data.choices[0].message.content.trim();
+                if (!answer) throw new Error('The AI returned an empty answer.');
+                if (requestVersion !== editorVersion) return;
+                generatedAnswer = answer;
+                aiOutput.value = answer;
+
+                if (problem) {
+                    const { data: updated, error } = await supabaseClient.from('problems')
+                        .update({ answer }).eq('id', problem.id).select('id');
+                    if (error) throw new Error('Answer generated, but could not save it: ' + error.message);
+                    if (!updated || updated.length !== 1) {
+                        throw new Error('Answer generated, but the question could not be updated. Check database permissions.');
+                    }
+                    const cachedProblem = questions.find(item => item.id === problem.id);
+                    if (cachedProblem) cachedProblem.answer = answer;
+                    if (requestVersion === editorVersion) setStatus('Answer saved to your question.', 'success');
+                } else {
+                    setStatus('Answer generated. Save the question to keep it.', 'success');
+                }
 
             } catch (e) {
-                aiOutput.value = "Could not generate an answer.\n\n" + e.message + "\n\nCheck your API key and network connection, then try again.";
-                setStatus('Could not generate an answer. See the answer window for details.', 'error');
+                if (requestVersion === editorVersion) {
+                    if (generatedAnswer) {
+                        setStatus(e.message + ' Use Save question to save a new copy.', 'error');
+                    } else {
+                        aiOutput.value = "Could not generate an answer.\n\n" + e.message + "\n\nCheck your API key and network connection, then try again.";
+                        setStatus('Could not generate an answer. See the answer window for details.', 'error');
+                    }
+                }
             } finally {
                 generateBtn.disabled = false;
+                submitBtn.disabled = false;
             }
         });
 
@@ -876,6 +924,8 @@
             const tags = normalizeTags(tagInput.value);
             const originalTags = tags.join(', ');
             const subject = subjectInput.value.trim();
+            const answer = generatedAnswer;
+            const saveVersion = editorVersion;
             if (subject) tags.unshift(subjectTagPrefix + encodeURIComponent(subject));
             const storedTags = tags.join(', ');
 
@@ -886,20 +936,23 @@
             }
 
             submitBtn.disabled = true;
+            generateBtn.disabled = true;
             setStatus('Saving your question…');
             try {
-                let { error } = await supabaseClient.from('problems').insert([{ text, tags: storedTags }]);
-                if (error && error.message.includes('column')) {
-                    const retry = await supabaseClient.from('problems').insert([{ question: text, tags: storedTags }]);
+                let { error } = await supabaseClient.from('problems').insert([{ text, tags: storedTags, answer }]);
+                if (error && error.message.includes('column') && error.message.includes('text')) {
+                    const retry = await supabaseClient.from('problems').insert([{ question: text, tags: storedTags, answer }]);
                     error = retry.error;
                 }
                 if (error) throw error;
                 // Do not erase edits made while the save was in flight.
-                if (questionInput.value.trim() === text && subjectInput.value.trim() === subject &&
+                if (saveVersion === editorVersion && questionInput.value.trim() === text && subjectInput.value.trim() === subject &&
                     normalizeTags(tagInput.value).join(', ') === originalTags) {
                     questionInput.value = "";
                     tagInput.value = "";
                     subjectInput.value = "";
+                    selectedProblem = null;
+                    clearAnswer();
                 }
                 setStatus('Question saved to your library.', 'success');
                 await fetchQuestions();
@@ -908,6 +961,7 @@
                 console.error(error);
             } finally {
                 submitBtn.disabled = false;
+                generateBtn.disabled = false;
             }
         });
 
