@@ -476,6 +476,10 @@
         .tag-badge { border: 0; background: #eeeafb; color: #6455ba; font-weight: 600; }
         .delete-tab-btn { min-width: 28px; min-height: 28px; }
         .sidebar-footer { margin: 20px 4px 0; padding-top: 17px; border-top: 1px solid var(--border-color); color: #999caf; font-size: 11px; line-height: 1.5; }
+        .account { margin: 0 4px 20px; padding: 12px; background: #f2f0ff; border-radius: 12px; }
+        .account-status { margin-bottom: 8px; color: #555975; font-size: 12px; overflow-wrap: anywhere; }
+        .account button { width: 100%; }
+        .account button[hidden] { display: none; }
         .workspace { min-width: 0; padding: 36px clamp(24px, 5vw, 72px) 44px; gap: 0; background: #fff; }
         .workspace-inner { width: 100%; max-width: 850px; margin: 0 auto; }
         .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 36px; }
@@ -549,6 +553,11 @@
     <div class="dashboard">
         <aside class="sidebar" aria-label="Homework library">
             <div class="brand"><div class="brand-mark" aria-hidden="true">✦</div><div><div class="brand-name">StudyVault</div><div class="brand-subtitle">Your space to learn</div></div></div>
+            <div class="account">
+                <div id="accountStatus" class="account-status" role="status">Checking sign-in…</div>
+                <button id="signInBtn" class="new-btn" type="button" disabled>Sign in with Google</button>
+                <button id="signOutBtn" class="new-btn" type="button" hidden>Sign out</button>
+            </div>
             <div class="sidebar-heading"><h2 class="sidebar-header">Your library</h2><span id="questionCount" class="question-count">0 saved</span></div>
             <div class="search-container">
                 <span class="search-icon" aria-hidden="true">⌕</span>
@@ -636,12 +645,17 @@
         const statusMessage = document.getElementById('statusMessage');
         const keySettings = document.getElementById('keySettings');
         const newQuestionBtn = document.getElementById('newQuestionBtn');
+        const signInBtn = document.getElementById('signInBtn');
+        const signOutBtn = document.getElementById('signOutBtn');
+        const accountStatus = document.getElementById('accountStatus');
 
         let currentSearchQuery = "";
         let questions = [];
         let selectedProblem = null;
         let generatedAnswer = null;
         let editorVersion = 0;
+        let currentUser = null;
+        let libraryVersion = 0;
         const subjectTagPrefix = '__studyvault_subject__:';
 
         function setStatus(message, kind = '') {
@@ -730,14 +744,19 @@
         }
 
         async function fetchQuestions() {
+            const userId = currentUser?.id;
+            if (!userId) return;
+            const requestVersion = ++libraryVersion;
             try {
-                const { data, error } = await supabaseClient.from('problems').select('*').order('id', { ascending: false });
+                const { data, error } = await supabaseClient.from('problems').select('*').eq('user_id', userId).order('id', { ascending: false });
+                if (requestVersion !== libraryVersion || currentUser?.id !== userId) return;
                 if (error) throw error;
                 questions = data || [];
                 questionCount.textContent = `${questions.length} saved`;
                 updateSubjectFilter();
                 filterQuestions();
             } catch (error) {
+                if (requestVersion !== libraryVersion || currentUser?.id !== userId) return;
                 console.error('Error reading database:', error);
                 questionList.innerHTML = '<div class="empty-state">Could not load your library. Please check your connection and refresh.</div>';
                 setStatus('Could not load saved questions. Please check your connection.', 'error');
@@ -800,14 +819,18 @@
                     e.stopPropagation();
                     
                     if (confirm(`Are you sure you want to delete Problem #${q.id}?`)) {
-                        const { error } = await supabaseClient
+                        const userId = currentUser?.id;
+                        if (!userId) return;
+                        const { data: deleted, error } = await supabaseClient
                             .from('problems')
                             .delete()
-                            .eq('id', q.id);
+                            .eq('id', q.id).eq('user_id', userId).select('id');
 
-                        if (error) {
-                            setStatus('Could not delete the question: ' + error.message, 'error');
-                            console.error(error);
+                        if (currentUser?.id !== userId) return;
+
+                        if (error || !deleted?.length) {
+                            setStatus('Could not delete the question: ' + (error?.message || 'Check database permissions.'), 'error');
+                            if (error) console.error(error);
                         } else {
                             if (selectedProblem && selectedProblem.id === q.id) {
                                 questionInput.value = "";
@@ -839,6 +862,7 @@
             const subject = subjectInput.value.trim();
             const problem = selectedProblem && selectedProblem.text === q && selectedProblem.subject === subject
                 ? selectedProblem : null;
+            const userId = currentUser?.id;
             
             if (!q) {
                 setStatus('Add a question before generating an answer.', 'error');
@@ -891,7 +915,8 @@
 
                 if (problem) {
                     const { data: updated, error } = await supabaseClient.from('problems')
-                        .update({ answer }).eq('id', problem.id).select('id');
+                        .update({ answer }).eq('id', problem.id).eq('user_id', userId).select('id');
+                    if (requestVersion !== editorVersion || currentUser?.id !== userId) return;
                     if (error) throw new Error('Answer generated, but could not save it: ' + error.message);
                     if (!updated || updated.length !== 1) {
                         throw new Error('Answer generated, but the question could not be updated. Check database permissions.');
@@ -920,6 +945,11 @@
 
         // Save data to cloud with fallback column checks
         submitBtn.addEventListener('click', async () => {
+            if (!currentUser) {
+                setStatus('Sign in with Google to save your questions.', 'error');
+                return;
+            }
+            const userId = currentUser.id;
             const text = questionInput.value.trim();
             const tags = normalizeTags(tagInput.value);
             const originalTags = tags.join(', ');
@@ -939,12 +969,13 @@
             generateBtn.disabled = true;
             setStatus('Saving your question…');
             try {
-                let { error } = await supabaseClient.from('problems').insert([{ text, tags: storedTags, answer }]);
+                let { error } = await supabaseClient.from('problems').insert([{ user_id: userId, text, tags: storedTags, answer }]);
                 if (error && error.message.includes('column') && error.message.includes('text')) {
-                    const retry = await supabaseClient.from('problems').insert([{ question: text, tags: storedTags, answer }]);
+                    const retry = await supabaseClient.from('problems').insert([{ user_id: userId, question: text, tags: storedTags, answer }]);
                     error = retry.error;
                 }
                 if (error) throw error;
+                if (currentUser?.id !== userId) return;
                 // Do not erase edits made while the save was in flight.
                 if (saveVersion === editorVersion && questionInput.value.trim() === text && subjectInput.value.trim() === subject &&
                     normalizeTags(tagInput.value).join(', ') === originalTags) {
@@ -957,6 +988,7 @@
                 setStatus('Question saved to your library.', 'success');
                 await fetchQuestions();
             } catch (error) {
+                if (currentUser?.id !== userId) return;
                 setStatus('Could not save the question: ' + error.message, 'error');
                 console.error(error);
             } finally {
@@ -972,7 +1004,52 @@
 
         subjectFilter.addEventListener('change', filterQuestions);
 
-        fetchQuestions();
+        signInBtn.addEventListener('click', async () => {
+            signInBtn.disabled = true;
+            try {
+                const redirectTo = window.location.origin + window.location.pathname;
+                const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+                if (error) throw error;
+            } catch (error) {
+                accountStatus.textContent = 'Could not sign in: ' + error.message;
+                signInBtn.disabled = false;
+            }
+        });
+
+        signOutBtn.addEventListener('click', async () => {
+            signOutBtn.disabled = true;
+            const { error } = await supabaseClient.auth.signOut();
+            if (error) accountStatus.textContent = 'Could not sign out: ' + error.message;
+            signOutBtn.disabled = false;
+        });
+
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            const user = session?.user || null;
+            if (event !== 'INITIAL_SESSION' && user?.id === currentUser?.id) return;
+            currentUser = user;
+            libraryVersion++;
+            questions = [];
+            selectedProblem = null;
+            questionInput.value = '';
+            subjectInput.value = '';
+            tagInput.value = '';
+            searchBar.value = '';
+            currentSearchQuery = '';
+            clearAnswer();
+            if (answerDialog.open) answerDialog.close();
+            questionCount.textContent = '0 saved';
+            updateSubjectFilter();
+            accountStatus.textContent = user ? 'Signed in as ' + (user.email || 'Google user') : 'Sign in to see your questions.';
+            signInBtn.hidden = !!user;
+            signInBtn.disabled = false;
+            signOutBtn.hidden = !user;
+            questionList.innerHTML = user
+                ? '<div class="empty-state">Loading your library…</div>'
+                : '<div class="empty-state">Sign in with Google to see your saved questions.</div>';
+            setStatus('');
+            // Defer Supabase calls until after the auth callback has returned.
+            if (user) setTimeout(() => { if (currentUser?.id === user.id) fetchQuestions(); }, 0);
+        });
     </script>
 </body>
 </html>
